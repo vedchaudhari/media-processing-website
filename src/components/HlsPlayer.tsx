@@ -1,64 +1,110 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Hls from "hls.js";
+import { useEffect, useRef } from "react";
+import videojs from "video.js";
 
-/**
- * Plays an HLS stream. Safari/iOS support HLS natively on a plain <video>;
- * every other browser needs hls.js to attach to a MediaSource. The hls
- * instance is torn down on unmount / src change to avoid leaks.
- */
-export default function HlsPlayer({ src }: { src: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState<string | null>(null);
+// Custom TypeScript-safe interface extending the base Video.js Player type
+type VideoJsPlayer = ReturnType<typeof videojs>;
 
+interface ExtendedPlayer extends VideoJsPlayer {
+  hlsQualitySelector(options?: { displayCurrentQuality?: boolean }): void;
+  qualityLevels(): {
+    on(event: string, callback: () => void): void;
+    off(event: string, callback: () => void): void;
+    [key: number]: any;
+    length: number;
+    selectedIndex: number;
+  };
+}
+
+// Import Video.js default styles
+import "video.js/dist/video-js.css";
+
+interface HlsPlayerProps {
+  src: string;
+}
+
+// Define player configuration options externally for modularity and easy future additions
+const PLAYER_OPTIONS = {
+  autoplay: false,
+  controls: true,
+  responsive: true,
+  fluid: true,
+  playbackRates: [0.5, 1, 1.5, 2],
+  controlBar: {
+    skipButtons: {
+      forward: 10,
+      backward: 10,
+    },
+  },
+};
+
+export default function HlsPlayer({ src }: HlsPlayerProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<ExtendedPlayer | null>(null);
+
+  // 1. Initialize player once on mount
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    if (playerRef.current) return;
 
-    let hls: Hls | null = null;
-    // Compute the error synchronously but apply it asynchronously, so we never
-    // call setState synchronously inside the effect body.
-    let nextError: string | null = null;
+    const containerElement = containerRef.current;
+    if (!containerElement) return;
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Native HLS (Safari, iOS): point the element straight at the playlist.
-      video.src = src;
-    } else if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true });
-      hls.loadSource(src);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          setError("Playback error. The stream may still be processing.");
-        }
-      });
-    } else {
-      nextError = "HLS is not supported in this browser.";
+    // Dynamically register the quality levels and quality selector plugins on the client
+    if (typeof window !== "undefined") {
+      require("videojs-contrib-quality-levels");
+      require("videojs-hls-quality-selector");
     }
 
-    // Reset (or set) the error for this src on the next tick.
-    const timer = setTimeout(() => setError(nextError), 0);
+    // Create a new video-js element dynamically to avoid React hydration / DOM mismatch
+    const videoElement = document.createElement("video-js");
+    videoElement.classList.add("vjs-big-play-centered", "w-full", "aspect-video");
+    containerElement.appendChild(videoElement);
 
+    const player: ExtendedPlayer = videojs(videoElement, PLAYER_OPTIONS, function (this: any) {
+      videojs.log("Video.js player is ready");
+
+      // Initialize HLS quality selector once the player is ready
+      const self = this as ExtendedPlayer;
+      if (typeof self.hlsQualitySelector === "function") {
+        self.hlsQualitySelector({
+          displayCurrentQuality: true,
+        });
+      }
+    }) as ExtendedPlayer;
+
+    playerRef.current = player;
+
+    // Clean up player and remove video element on unmount
     return () => {
-      clearTimeout(timer);
-      hls?.destroy();
+      if (player && !player.isDisposed()) {
+        player.dispose();
+        playerRef.current = null;
+      }
+      if (containerElement.contains(videoElement)) {
+        containerElement.removeChild(videoElement);
+      }
     };
+  }, []);
+
+  // 2. Update source and reload separately when src changes
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    player.src({
+      src,
+      type: "application/x-mpegURL", // standard HLS type
+    });
+    player.load();
   }, [src]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-black dark:border-zinc-800">
-      <video
-        ref={videoRef}
-        controls
-        playsInline
-        className="aspect-video w-full bg-black"
-      />
-      {error && (
-        <p className="bg-red-50 px-4 py-2 text-sm text-red-600 dark:bg-red-950 dark:text-red-300">
-          {error}
-        </p>
-      )}
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-black shadow-lg dark:border-zinc-800 transition-all duration-300 hover:shadow-xl">
+      <div data-vjs-player ref={containerRef} />
     </div>
   );
 }
+
+
+
