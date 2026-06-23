@@ -20,6 +20,12 @@ interface ExtendedPlayer extends VideoJsPlayer {
 // Import Video.js default styles
 import "video.js/dist/video-js.css";
 
+// Dynamically load client-side self-registering plugins at module scope to run only once
+if (typeof window !== "undefined") {
+  require("videojs-contrib-quality-levels");
+  require("videojs-hls-quality-selector");
+}
+
 interface HlsPlayerProps {
   src: string;
 }
@@ -49,12 +55,6 @@ export default function HlsPlayer({ src }: HlsPlayerProps) {
 
     const containerElement = containerRef.current;
     if (!containerElement) return;
-
-    // Dynamically register the quality levels and quality selector plugins on the client
-    if (typeof window !== "undefined") {
-      require("videojs-contrib-quality-levels");
-      require("videojs-hls-quality-selector");
-    }
 
     // Create a new video-js element dynamically to avoid React hydration / DOM mismatch
     const videoElement = document.createElement("video-js");
