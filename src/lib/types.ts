@@ -16,6 +16,7 @@ export interface VideoListItem {
   title?: string;
   status: VideoStatus;
   progress: number;
+  thumbnailUrl?: string;
   createdAt?: string;
 }
 
@@ -44,6 +45,7 @@ export interface PlayResult {
   status: VideoStatus;
   progress: number;
   playbackUrl?: string;
+  thumbnailUrl?: string;
 }
 
 // Statuses that represent active pipeline work (used for spinners/polling).

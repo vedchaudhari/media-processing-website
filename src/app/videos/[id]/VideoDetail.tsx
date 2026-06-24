@@ -49,7 +49,7 @@ export default function VideoDetail({ id }: { id: string }) {
 
           {/* Ready → play it */}
           {data.ready && data.playbackUrl && (
-            <HlsPlayer src={data.playbackUrl} />
+            <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} />
           )}
 
           {/* Failed → clear failure state */}

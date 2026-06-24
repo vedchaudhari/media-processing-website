@@ -28,6 +28,7 @@ if (typeof window !== "undefined") {
 
 interface HlsPlayerProps {
   src: string;
+  poster?: string;
 }
 
 // Define player configuration options externally for modularity and easy future additions
@@ -45,7 +46,7 @@ const PLAYER_OPTIONS = {
   },
 };
 
-export default function HlsPlayer({ src }: HlsPlayerProps) {
+export default function HlsPlayer({ src, poster }: HlsPlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<ExtendedPlayer | null>(null);
 
@@ -87,7 +88,7 @@ export default function HlsPlayer({ src }: HlsPlayerProps) {
     };
   }, []);
 
-  // 2. Update source and reload separately when src changes
+  // 2. Update source, poster and reload separately when src/poster changes
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
@@ -96,8 +97,11 @@ export default function HlsPlayer({ src }: HlsPlayerProps) {
       src,
       type: "application/x-mpegURL", // standard HLS type
     });
+    if (poster) {
+      player.poster(poster);
+    }
     player.load();
-  }, [src]);
+  }, [src, poster]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200 bg-black shadow-lg dark:border-zinc-800 transition-all duration-300 hover:shadow-xl">
