@@ -108,6 +108,7 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       progress: body.progress ?? 100,
       playbackUrl: body.playbackUrl,
       thumbnailUrl: body.thumbnailUrl,
+      transcript: body.transcript,
     };
   }
 
@@ -118,6 +119,7 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       status: body.status,
       progress: body.progress ?? 0,
       thumbnailUrl: body.thumbnailUrl,
+      transcript: body.transcript,
     };
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getPlay } from "@/lib/api";
@@ -7,17 +8,45 @@ import { isInProgress } from "@/lib/types";
 import HlsPlayer from "@/components/HlsPlayer";
 import StatusBadge from "@/components/StatusBadge";
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function VideoDetail({ id }: { id: string }) {
+  const [currentTime, setCurrentTime] = useState(0);
+  const playerRef = useRef<any>(null);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["play", id],
     queryFn: () => getPlay(id),
-    // Keep polling while the video is still moving through the pipeline.
+    // Keep polling while the video or transcript is still moving through the pipeline.
     refetchInterval: (query) => {
       const result = query.state.data;
       if (result && !result.ready && isInProgress(result.status)) return 3000;
+      
+      // Also poll if the video is ready but transcript is still processing/pending
+      if (result && result.ready && result.transcript && (result.transcript.status === "pending" || result.transcript.status === "processing")) {
+        return 3000;
+      }
       return false;
     },
   });
+
+  const handlePlayerReady = (player: any) => {
+    playerRef.current = player;
+    player.on("timeupdate", () => {
+      setCurrentTime(player.currentTime());
+    });
+  };
+
+  const seekTo = (start: number) => {
+    if (playerRef.current) {
+      playerRef.current.currentTime(start);
+      playerRef.current.play();
+    }
+  };
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -49,7 +78,64 @@ export default function VideoDetail({ id }: { id: string }) {
 
           {/* Ready → play it */}
           {data.ready && data.playbackUrl && (
-            <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} />
+            <div className="space-y-6">
+              <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} />
+              
+              {/* Interactive Transcript Component */}
+              <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <h2 className="mb-4 text-base font-semibold tracking-tight">Interactive Transcript</h2>
+                
+                {!data.transcript && (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">No transcript available.</p>
+                )}
+
+                {data.transcript && data.transcript.status === "pending" && (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Waiting for transcription to start...</p>
+                )}
+
+                {data.transcript && data.transcript.status === "processing" && (
+                  <div className="flex items-center gap-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-blue-600 dark:border-zinc-700 dark:border-t-blue-400" />
+                    <span>Transcribing audio in the background...</span>
+                  </div>
+                )}
+
+                {data.transcript && data.transcript.status === "failed" && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400">
+                    <p className="font-semibold">Transcription failed</p>
+                    <p className="mt-1 text-xs opacity-90">{data.transcript.error || "Unknown error occurred"}</p>
+                  </div>
+                )}
+
+                {data.transcript && data.transcript.status === "completed" && (
+                  <div className="max-h-80 overflow-y-auto pr-2 space-y-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
+                    {data.transcript.segments && data.transcript.segments.length > 0 ? (
+                      data.transcript.segments.map((segment, index) => {
+                        const isActive = currentTime >= segment.start && currentTime < segment.end;
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => seekTo(segment.start)}
+                            className={`flex gap-4 p-2.5 rounded-lg cursor-pointer transition-all duration-200 text-sm ${
+                              isActive
+                                ? "bg-blue-50 text-blue-800 border-l-4 border-blue-600 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-400"
+                                : "hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+                            }`}
+                          >
+                            <span className={`font-mono text-xs select-none shrink-0 pt-0.5 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-zinc-400"}`}>
+                              {formatTime(segment.start)}
+                            </span>
+                            <p className="leading-relaxed">{segment.text}</p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">Transcript is empty.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Failed → clear failure state */}

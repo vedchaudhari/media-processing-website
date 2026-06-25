@@ -35,6 +35,20 @@ export interface CompleteUploadResponse {
   status: VideoStatus;
 }
 
+export interface ITranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface ITranscript {
+  status: "pending" | "processing" | "completed" | "failed";
+  text?: string;
+  segments?: ITranscriptSegment[];
+  objectKey?: string;
+  error?: string;
+}
+
 // Normalized result of GET /api/videos/:id/play.
 // `ready` distinguishes a playable video (200) from a still-processing /
 // failed one (409), so the player page never has to inspect HTTP codes.
@@ -46,6 +60,7 @@ export interface PlayResult {
   progress: number;
   playbackUrl?: string;
   thumbnailUrl?: string;
+  transcript?: ITranscript | null;
 }
 
 // Statuses that represent active pipeline work (used for spinners/polling).
