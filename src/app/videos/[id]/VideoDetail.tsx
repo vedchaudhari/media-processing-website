@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getPlay } from "@/lib/api";
@@ -39,6 +39,13 @@ export default function VideoDetail({ id }: { id: string }) {
       return false;
     },
   });
+
+  // Switch to the transcript tab automatically if no AI insights are available on this video
+  useEffect(() => {
+    if (data && !data.aiSummary) {
+      setActiveTab("transcript");
+    }
+  }, [data]);
 
   const handlePlayerReady = (player: any) => {
     playerRef.current = player;
@@ -88,128 +95,34 @@ export default function VideoDetail({ id }: { id: string }) {
               <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} />
               
               {/* Tab Selector */}
-              <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
-                <button
-                  onClick={() => setActiveTab("ai")}
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    activeTab === "ai"
-                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-                  }`}
-                >
-                  AI Insights
-                </button>
-                <button
-                  onClick={() => setActiveTab("transcript")}
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    activeTab === "transcript"
-                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                      : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-                  }`}
-                >
-                  Interactive Transcript
-                </button>
-              </div>
+              {data.aiSummary && (
+                <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
+                  <button
+                    onClick={() => setActiveTab("ai")}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      activeTab === "ai"
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    AI Insights
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("transcript")}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      activeTab === "transcript"
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    Interactive Transcript
+                  </button>
+                </div>
+              )}
 
               {/* Tab Content Panel */}
               <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                {activeTab === "ai" && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
-                      <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">AI Insights & Analysis</h2>
-                      {data.aiSummary && (
-                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                          data.aiSummary.status === "completed" ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400" :
-                          data.aiSummary.status === "processing" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 animate-pulse" :
-                          data.aiSummary.status === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400" :
-                          "bg-zinc-50 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
-                        }`}>
-                          {data.aiSummary.status === "completed" ? "Ready" :
-                           data.aiSummary.status === "processing" ? "Processing..." :
-                           data.aiSummary.status === "failed" ? "Failed" : "Pending"}
-                        </span>
-                      )}
-                    </div>
-
-                    {!data.aiSummary && (
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">No AI insights generated for this video.</p>
-                    )}
-
-                    {data.aiSummary && data.aiSummary.status === "pending" && (
-                      <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">Waiting for AI analysis to start...</p>
-                    )}
-
-                    {data.aiSummary && data.aiSummary.status === "processing" && (
-                      <div className="space-y-4 py-2">
-                        <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600 dark:border-zinc-700 dark:border-t-indigo-400" />
-                          <span>AI is analyzing the video transcript to generate insights...</span>
-                        </div>
-                        <div className="space-y-2.5 animate-pulse">
-                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-3/4"></div>
-                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-5/6"></div>
-                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-2/3"></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {data.aiSummary && data.aiSummary.status === "failed" && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 py-2">
-                        <p className="font-semibold">AI Analysis failed</p>
-                        <p className="mt-1 text-xs opacity-90">{data.aiSummary.error || "Unknown error occurred"}</p>
-                      </div>
-                    )}
-
-                    {data.aiSummary && data.aiSummary.status === "completed" && (
-                      <div className="space-y-6">
-                        {data.aiSummary.summary && (
-                          <div>
-                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Summary</h3>
-                            <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed font-normal">
-                              {data.aiSummary.summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {data.aiSummary.keyTakeaways && data.aiSummary.keyTakeaways.length > 0 && (
-                          <div>
-                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">Key Takeaways</h3>
-                            <ul className="space-y-3">
-                              {data.aiSummary.keyTakeaways.map((point, idx) => (
-                                <li key={idx} className="flex gap-3 text-sm text-zinc-700 dark:text-zinc-300 items-start">
-                                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 mt-0.5">
-                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </span>
-                                  <span className="leading-relaxed pt-0.5">{point}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {data.aiSummary.technologies && data.aiSummary.technologies.length > 0 && (
-                          <div>
-                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">Topics & Technologies</h3>
-                            <div className="flex flex-wrap gap-2">
-                              {data.aiSummary.technologies.map((tech, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2.5 py-1 text-xs font-medium rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 dark:bg-indigo-950/20 dark:border-indigo-900/40 dark:text-indigo-300"
-                                >
-                                  {tech}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "transcript" && (
+                {(!data.aiSummary || activeTab === "transcript") ? (
                   <div>
                     <h2 className="mb-4 text-base font-semibold tracking-tight border-b border-zinc-100 pb-4 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100">Interactive Transcript</h2>
                     
@@ -259,6 +172,94 @@ export default function VideoDetail({ id }: { id: string }) {
                           })
                         ) : (
                           <p className="text-sm text-zinc-500 dark:text-zinc-400">Transcript is empty.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                      <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">AI Insights & Analysis</h2>
+                      <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                        data.aiSummary.status === "completed" ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400" :
+                        data.aiSummary.status === "processing" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 animate-pulse" :
+                        data.aiSummary.status === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400" :
+                        "bg-zinc-50 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
+                      }`}>
+                        {data.aiSummary.status === "completed" ? "Ready" :
+                         data.aiSummary.status === "processing" ? "Processing..." :
+                         data.aiSummary.status === "failed" ? "Failed" : "Pending"}
+                      </span>
+                    </div>
+
+                    {data.aiSummary.status === "pending" && (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">Waiting for AI analysis to start...</p>
+                    )}
+
+                    {data.aiSummary.status === "processing" && (
+                      <div className="space-y-4 py-2">
+                        <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600 dark:border-zinc-700 dark:border-t-indigo-400" />
+                          <span>AI is analyzing the video transcript to generate insights...</span>
+                        </div>
+                        <div className="space-y-2.5 animate-pulse">
+                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-3/4"></div>
+                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-5/6"></div>
+                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-2/3"></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {data.aiSummary.status === "failed" && (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 py-2">
+                        <p className="font-semibold">AI Analysis failed</p>
+                        <p className="mt-1 text-xs opacity-90">{data.aiSummary.error || "Unknown error occurred"}</p>
+                      </div>
+                    )}
+
+                    {data.aiSummary.status === "completed" && (
+                      <div className="space-y-6">
+                        {data.aiSummary.summary && (
+                          <div>
+                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Summary</h3>
+                            <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed font-normal">
+                              {data.aiSummary.summary}
+                            </p>
+                          </div>
+                        )}
+
+                        {data.aiSummary.keyTakeaways && data.aiSummary.keyTakeaways.length > 0 && (
+                          <div>
+                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">Key Takeaways</h3>
+                            <ul className="space-y-3">
+                              {data.aiSummary.keyTakeaways.map((point, idx) => (
+                                <li key={idx} className="flex gap-3 text-sm text-zinc-700 dark:text-zinc-300 items-start">
+                                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 mt-0.5">
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </span>
+                                  <span className="leading-relaxed pt-0.5">{point}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {data.aiSummary.technologies && data.aiSummary.technologies.length > 0 && (
+                          <div>
+                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">Topics & Technologies</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {data.aiSummary.technologies.map((tech, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2.5 py-1 text-xs font-medium rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 dark:bg-indigo-950/20 dark:border-indigo-900/40 dark:text-indigo-300"
+                                >
+                                  {tech}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
