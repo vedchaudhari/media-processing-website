@@ -49,6 +49,14 @@ export interface ITranscript {
   error?: string;
 }
 
+export interface IAISummary {
+  status: "pending" | "processing" | "completed" | "failed";
+  summary?: string;
+  keyTakeaways?: string[];
+  technologies?: string[];
+  error?: string;
+}
+
 // Normalized result of GET /api/videos/:id/play.
 // `ready` distinguishes a playable video (200) from a still-processing /
 // failed one (409), so the player page never has to inspect HTTP codes.
@@ -61,6 +69,7 @@ export interface PlayResult {
   playbackUrl?: string;
   thumbnailUrl?: string;
   transcript?: ITranscript | null;
+  aiSummary?: IAISummary | null;
 }
 
 // Statuses that represent active pipeline work (used for spinners/polling).

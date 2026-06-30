@@ -109,6 +109,7 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       playbackUrl: body.playbackUrl,
       thumbnailUrl: body.thumbnailUrl,
       transcript: body.transcript,
+      aiSummary: body.aiSummary,
     };
   }
 
@@ -120,6 +121,7 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       progress: body.progress ?? 0,
       thumbnailUrl: body.thumbnailUrl,
       transcript: body.transcript,
+      aiSummary: body.aiSummary,
     };
   }
 
