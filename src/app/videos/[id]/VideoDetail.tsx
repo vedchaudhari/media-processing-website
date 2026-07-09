@@ -188,7 +188,8 @@ export default function VideoDetail({ id }: { id: string }) {
                       }`}>
                         {data.aiSummary.status === "completed" ? "Ready" :
                          data.aiSummary.status === "processing" ? "Processing..." :
-                         data.aiSummary.status === "failed" ? "Failed" : "Pending"}
+                         data.aiSummary.status === "failed" ? "Failed" :
+                         data.aiSummary.status === "skipped" ? "Not applicable" : "Pending"}
                       </span>
                     </div>
 
@@ -217,8 +218,41 @@ export default function VideoDetail({ id }: { id: string }) {
                       </div>
                     )}
 
+                    {data.aiSummary.status === "skipped" && (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
+                        No speech was detected in this video, so there are no AI insights to show.
+                      </p>
+                    )}
+
                     {data.aiSummary.status === "completed" && (
                       <div className="space-y-6">
+                        {data.aiSummary.chapters && data.aiSummary.chapters.length > 0 && (
+                          <div>
+                            <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-3">Chapters</h3>
+                            <div className="space-y-1">
+                              {data.aiSummary.chapters.map((ch, idx) => {
+                                const next = data.aiSummary!.chapters![idx + 1];
+                                const isActive = currentTime >= ch.start && (!next || currentTime < next.start);
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => seekTo(ch.start)}
+                                    className={`flex w-full items-center gap-3 rounded-lg p-2 text-left text-sm transition-colors ${
+                                      isActive
+                                        ? "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                        : "hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300"
+                                    }`}
+                                  >
+                                    <span className="font-mono text-xs text-blue-600 dark:text-blue-400 shrink-0">
+                                      {formatTime(ch.start)}
+                                    </span>
+                                    <span>{ch.title}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                         {data.aiSummary.summary && (
                           <div>
                             <h3 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Summary</h3>

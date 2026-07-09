@@ -49,11 +49,18 @@ export interface ITranscript {
   error?: string;
 }
 
+export interface IChapter {
+  start: number;
+  title: string;
+}
+
 export interface IAISummary {
-  status: "pending" | "processing" | "completed" | "failed";
+  // "skipped" = no transcript text to summarize (e.g. a video with no speech).
+  status: "pending" | "processing" | "completed" | "failed" | "skipped";
   summary?: string;
   keyTakeaways?: string[];
   technologies?: string[];
+  chapters?: IChapter[];
   error?: string;
 }
 

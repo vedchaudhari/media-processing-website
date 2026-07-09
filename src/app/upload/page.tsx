@@ -21,7 +21,11 @@ export default function UploadPage() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const busy = phase === "uploading" || phase === "finalizing";
+  // "done" is included: router.push kicks off a client navigation but this
+  // component stays mounted until the target route is ready, so keep the form
+  // locked through that window to prevent a duplicate submit.
+  const busy =
+    phase === "uploading" || phase === "finalizing" || phase === "done";
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
@@ -207,7 +211,11 @@ export default function UploadPage() {
           disabled={!file || busy}
           className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? "Working…" : "Upload & process"}
+          {phase === "done"
+            ? "Redirecting…"
+            : busy
+              ? "Working…"
+              : "Upload & process"}
         </button>
       </div>
     </div>
