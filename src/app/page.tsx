@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { listVideos } from "@/lib/api";
@@ -7,6 +8,9 @@ import { isInProgress } from "@/lib/types";
 import VideoCard from "@/components/VideoCard";
 
 export default function LibraryPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["videos"],
     queryFn: listVideos,
@@ -17,6 +21,12 @@ export default function LibraryPage() {
       if (videos && videos.some((v) => isInProgress(v.status))) return 3000;
       return false;
     },
+  });
+
+  const filteredVideos = data?.filter((video) => {
+    const matchesSearch = video.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || video.status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -35,6 +45,48 @@ export default function LibraryPage() {
           Upload
         </Link>
       </div>
+
+      {/* Search and Filters */}
+      {data && data.length > 0 && (
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 max-w-md">
+            <input
+              type="text"
+              placeholder="Search videos by title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-xs cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="status-filter" className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Status:
+            </label>
+            <select
+              id="status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+            >
+              <option value="all">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="uploading">Uploading</option>
+              <option value="transcoding">Transcoding</option>
+              <option value="planning">Planning</option>
+              <option value="inspecting">Inspecting</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {isLoading && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -72,11 +124,30 @@ export default function LibraryPage() {
       )}
 
       {data && data.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
+        <>
+          {filteredVideos && filteredVideos.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-300 p-12 text-center dark:border-zinc-700">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No videos match your search or filter criteria.
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("all");
+                }}
+                className="mt-3 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400 cursor-pointer"
+              >
+                Clear all filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredVideos?.map((video) => (
+                <VideoCard key={video.id} video={video} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

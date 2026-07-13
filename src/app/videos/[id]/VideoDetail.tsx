@@ -18,6 +18,7 @@ export default function VideoDetail({ id }: { id: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<"ai" | "transcript">("ai");
   const playerRef = useRef<any>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["play", id],
@@ -46,6 +47,20 @@ export default function VideoDetail({ id }: { id: string }) {
       setActiveTab("transcript");
     }
   }, [data]);
+
+  // Auto-scroll the active transcript segment into view
+  useEffect(() => {
+    if (activeTab === "transcript" && transcriptContainerRef.current) {
+      const activeEl = transcriptContainerRef.current.querySelector("[data-active='true']");
+      if (activeEl) {
+        activeEl.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      }
+    }
+  }, [currentTime, activeTab]);
+
 
   const handlePlayerReady = (player: any) => {
     playerRef.current = player;
@@ -92,7 +107,7 @@ export default function VideoDetail({ id }: { id: string }) {
           {/* Ready → play it */}
           {data.ready && data.playbackUrl && (
             <div className="space-y-6">
-              <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} />
+              <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} chapters={data.aiSummary?.chapters} />
               
               {/* Tab Selector */}
               {data.aiSummary && (
@@ -149,7 +164,7 @@ export default function VideoDetail({ id }: { id: string }) {
                     )}
 
                     {data.transcript && data.transcript.status === "completed" && (
-                      <div className="max-h-80 overflow-y-auto pr-2 space-y-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
+                      <div ref={transcriptContainerRef} className="max-h-80 overflow-y-auto pr-2 space-y-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
                         {data.transcript.segments && data.transcript.segments.length > 0 ? (
                           data.transcript.segments.map((segment, index) => {
                             const isActive = currentTime >= segment.start && currentTime < segment.end;
@@ -157,6 +172,7 @@ export default function VideoDetail({ id }: { id: string }) {
                               <div
                                 key={index}
                                 onClick={() => seekTo(segment.start)}
+                                data-active={isActive}
                                 className={`flex gap-4 p-2.5 rounded-lg cursor-pointer transition-all duration-200 text-sm ${
                                   isActive
                                     ? "bg-blue-50 text-blue-800 border-l-4 border-blue-600 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-400"
