@@ -17,6 +17,8 @@ function formatTime(seconds: number): string {
 export default function VideoDetail({ id }: { id: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<"ai" | "transcript" | "ask">("ai");
+  // Once the user picks a tab themselves, auto-selection must never override it.
+  const userChoseTab = useRef(false);
   const playerRef = useRef<any>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
@@ -60,18 +62,28 @@ export default function VideoDetail({ id }: { id: string }) {
     },
   });
 
-  // Switch to the first available tab automatically
+  // Switch to the first available tab automatically. Depends on the status
+  // strings (not the `data` object, which is a fresh reference on every poll /
+  // window refocus) so it only fires when a status actually changes — and never
+  // after the user has picked a tab manually.
+  const aiStatus = data?.aiSummary?.status;
+  const transcriptStatus = data?.transcript?.status;
   useEffect(() => {
-    if (data) {
-      if (data.aiSummary && data.aiSummary.status === "completed") {
-        setActiveTab("ai");
-      } else if (data.transcript && data.transcript.status === "completed") {
-        setActiveTab("ask");
-      } else {
-        setActiveTab("transcript");
-      }
+    if (!aiStatus && !transcriptStatus) return;
+    if (userChoseTab.current) return;
+    if (aiStatus === "completed") {
+      setActiveTab("ai");
+    } else if (transcriptStatus === "completed") {
+      setActiveTab("ask");
+    } else {
+      setActiveTab("transcript");
     }
-  }, [data]);
+  }, [aiStatus, transcriptStatus]);
+
+  const chooseTab = (tab: "ai" | "transcript" | "ask") => {
+    userChoseTab.current = true;
+    setActiveTab(tab);
+  };
 
   // Auto-scroll the active transcript segment into view
   useEffect(() => {
@@ -138,7 +150,7 @@ export default function VideoDetail({ id }: { id: string }) {
               <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
                 {data.aiSummary && (
                   <button
-                    onClick={() => setActiveTab("ai")}
+                    onClick={() => chooseTab("ai")}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                       activeTab === "ai"
                         ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
@@ -150,7 +162,7 @@ export default function VideoDetail({ id }: { id: string }) {
                 )}
                 {data.transcript && (
                   <button
-                    onClick={() => setActiveTab("transcript")}
+                    onClick={() => chooseTab("transcript")}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                       activeTab === "transcript"
                         ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
@@ -162,7 +174,7 @@ export default function VideoDetail({ id }: { id: string }) {
                 )}
                 {data.transcript && (!data.vectorIndex || data.vectorIndex.status !== "skipped") && (
                   <button
-                    onClick={() => setActiveTab("ask")}
+                    onClick={() => chooseTab("ask")}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                       activeTab === "ask"
                         ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"

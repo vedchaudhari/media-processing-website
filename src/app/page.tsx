@@ -24,7 +24,9 @@ export default function LibraryPage() {
   });
 
   const filteredVideos = data?.filter((video) => {
-    const matchesSearch = video.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    // `?? ""` so untitled videos aren't dropped (optional chaining alone would
+    // make matchesSearch undefined and filter them out even with no query).
+    const matchesSearch = (video.title ?? "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || video.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
