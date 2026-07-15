@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { getPlay } from "@/lib/api";
-import { isInProgress } from "@/lib/types";
+import { getPlay, askQuestion } from "@/lib/api";
+import { isInProgress, type AskSource } from "@/lib/types";
 import HlsPlayer from "@/components/HlsPlayer";
 import StatusBadge from "@/components/StatusBadge";
 
@@ -16,9 +16,23 @@ function formatTime(seconds: number): string {
 
 export default function VideoDetail({ id }: { id: string }) {
   const [currentTime, setCurrentTime] = useState(0);
-  const [activeTab, setActiveTab] = useState<"ai" | "transcript">("ai");
+  const [activeTab, setActiveTab] = useState<"ai" | "transcript" | "ask">("ai");
   const playerRef = useRef<any>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize session: clear old localStorage chats if browser session closed
+  useEffect(() => {
+    const isNewSession = !document.cookie.includes("session_active=true");
+    if (isNewSession) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("chat_history_")) {
+          localStorage.removeItem(key);
+        }
+      }
+      document.cookie = "session_active=true; path=/";
+    }
+  }, []);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["play", id],
@@ -37,14 +51,25 @@ export default function VideoDetail({ id }: { id: string }) {
       if (result && result.ready && result.aiSummary && (result.aiSummary.status === "pending" || result.aiSummary.status === "processing")) {
         return 3000;
       }
+
+      // Also poll if the video is ready but Qdrant indexing is still processing/pending
+      if (result && result.ready && result.vectorIndex && (result.vectorIndex.status === "pending" || result.vectorIndex.status === "processing")) {
+        return 3000;
+      }
       return false;
     },
   });
 
-  // Switch to the transcript tab automatically if no AI insights are available on this video
+  // Switch to the first available tab automatically
   useEffect(() => {
-    if (data && !data.aiSummary) {
-      setActiveTab("transcript");
+    if (data) {
+      if (data.aiSummary && data.aiSummary.status === "completed") {
+        setActiveTab("ai");
+      } else if (data.transcript && data.transcript.status === "completed") {
+        setActiveTab("ask");
+      } else {
+        setActiveTab("transcript");
+      }
     }
   }, [data]);
 
@@ -110,8 +135,8 @@ export default function VideoDetail({ id }: { id: string }) {
               <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} chapters={data.aiSummary?.chapters} />
               
               {/* Tab Selector */}
-              {data.aiSummary && (
-                <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
+              <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
+                {data.aiSummary && (
                   <button
                     onClick={() => setActiveTab("ai")}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
@@ -122,6 +147,8 @@ export default function VideoDetail({ id }: { id: string }) {
                   >
                     AI Insights
                   </button>
+                )}
+                {data.transcript && (
                   <button
                     onClick={() => setActiveTab("transcript")}
                     className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
@@ -132,12 +159,24 @@ export default function VideoDetail({ id }: { id: string }) {
                   >
                     Interactive Transcript
                   </button>
-                </div>
-              )}
+                )}
+                {data.transcript && (!data.vectorIndex || data.vectorIndex.status !== "skipped") && (
+                  <button
+                    onClick={() => setActiveTab("ask")}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      activeTab === "ask"
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    Ask AI
+                  </button>
+                )}
+              </div>
 
               {/* Tab Content Panel */}
               <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-                {(!data.aiSummary || activeTab === "transcript") ? (
+                {activeTab === "transcript" ? (
                   <div>
                     <h2 className="mb-4 text-base font-semibold tracking-tight border-b border-zinc-100 pb-4 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100">Interactive Transcript</h2>
                     
@@ -192,7 +231,45 @@ export default function VideoDetail({ id }: { id: string }) {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : activeTab === "ask" ? (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                      <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Ask AI</h2>
+                      {data.vectorIndex && (
+                        <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${
+                          data.vectorIndex.status === "completed" ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400" :
+                          data.vectorIndex.status === "processing" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 animate-pulse" :
+                          data.vectorIndex.status === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400" :
+                          "bg-zinc-50 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
+                        }`}>
+                          {data.vectorIndex.status === "completed" ? "Ready" :
+                           data.vectorIndex.status === "processing" ? "Indexing..." :
+                           data.vectorIndex.status === "failed" ? "Failed" : "Pending"}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {data.vectorIndex && (data.vectorIndex.status === "pending" || data.vectorIndex.status === "processing") ? (
+                      <div className="space-y-4 py-2">
+                        <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600 dark:border-zinc-700 dark:border-t-indigo-400" />
+                          <span>AI is indexing the video's transcript for search. This takes less than a minute...</span>
+                        </div>
+                        <div className="space-y-2.5 animate-pulse">
+                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-2/3"></div>
+                          <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    ) : data.vectorIndex && data.vectorIndex.status === "failed" ? (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 py-2">
+                        <p className="font-semibold">Indexing failed</p>
+                        <p className="mt-1 text-xs opacity-90">{data.vectorIndex.error || "Unknown error occurred"}</p>
+                      </div>
+                    ) : (
+                      <AskAIChat videoId={id} seekTo={seekTo} />
+                    )}
+                  </div>
+                ) : data.aiSummary ? (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
                       <h2 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">AI Insights & Analysis</h2>
@@ -314,6 +391,8 @@ export default function VideoDetail({ id }: { id: string }) {
                       </div>
                     )}
                   </div>
+                ) : (
+                  <p className="text-sm text-zinc-500 py-4">No AI insights available for this video.</p>
                 )}
               </div>
             </div>
@@ -364,3 +443,148 @@ export default function VideoDetail({ id }: { id: string }) {
     </div>
   );
 }
+
+function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: number) => void }) {
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string; sources?: AskSource[] }>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`chat_history_${videoId}`);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Sync messages to localStorage
+  useEffect(() => {
+    localStorage.setItem(`chat_history_${videoId}`, JSON.stringify(messages));
+  }, [messages, videoId]);
+
+  // Sync messages across other tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `chat_history_${videoId}`) {
+        try {
+          setMessages(e.newValue ? JSON.parse(e.newValue) : []);
+        } catch (err) {
+          // ignore parsing error
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [videoId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMsg = input.trim();
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text: userMsg }]);
+    setIsLoading(true);
+
+    try {
+      const res = await askQuestion(videoId, userMsg);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: res.answer, sources: res.sources },
+      ]);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: `Error: ${err.message || "Failed to get answer."}` },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Chat Messages */}
+      <div className="flex flex-col gap-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
+        {messages.length === 0 && (
+          <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
+            Ask any question about what was discussed in this video!
+          </div>
+        )}
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`flex flex-col gap-2 rounded-xl p-4 text-sm max-w-[85%] ${
+              msg.role === "user"
+                ? "bg-blue-600 text-white self-end"
+                : "bg-zinc-50 text-zinc-800 border border-zinc-150 self-start dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-200"
+            }`}
+          >
+            <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+            {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/80">
+                <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block mb-2">Sources (Click to jump):</span>
+                <div className="flex flex-wrap gap-2">
+                  {msg.sources.map((src, sIdx) => (
+                    <button
+                      key={sIdx}
+                      onClick={() => seekTo(src.start)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 transition-all cursor-pointer shadow-sm"
+                    >
+                      <svg className="h-3 w-3 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {formatTime(src.start)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex gap-2 rounded-xl p-4 text-sm bg-zinc-50 border border-zinc-150 self-start dark:bg-zinc-900 dark:border-zinc-800 w-[60px] items-center justify-center">
+            <div className="flex gap-1">
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+              <span className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            </div>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Input Form */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask a question..."
+          disabled={isLoading}
+          className="flex-1 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100 focus:dark:border-blue-400 disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={isLoading || !input.trim()}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-500 disabled:bg-zinc-100 disabled:text-zinc-400 dark:disabled:bg-zinc-900 dark:disabled:text-zinc-600 transition-colors cursor-pointer"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </form>
+    </div>
+  );
+}
+

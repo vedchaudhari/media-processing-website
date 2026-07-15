@@ -3,7 +3,9 @@ import type {
   InitiateUploadResponse,
   PlayResult,
   VideoListItem,
+  AskResponse,
 } from "./types";
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 
@@ -110,6 +112,7 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       thumbnailUrl: body.thumbnailUrl,
       transcript: body.transcript,
       aiSummary: body.aiSummary,
+      vectorIndex: body.vectorIndex,
     };
   }
 
@@ -122,8 +125,18 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
       thumbnailUrl: body.thumbnailUrl,
       transcript: body.transcript,
       aiSummary: body.aiSummary,
+      vectorIndex: body.vectorIndex,
     };
   }
 
   throw new Error(body?.message ?? `Failed to load video (${res.status})`);
 }
+
+/** Ask AI a question about a video's content. */
+export function askQuestion(videoId: string, question: string): Promise<AskResponse> {
+  return request<AskResponse>(`/api/videos/${videoId}/ask`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+

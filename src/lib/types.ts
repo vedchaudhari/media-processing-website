@@ -64,6 +64,11 @@ export interface IAISummary {
   error?: string;
 }
 
+export interface IVectorIndex {
+  status: "pending" | "processing" | "completed" | "failed" | "skipped";
+  error?: string;
+}
+
 // Normalized result of GET /api/videos/:id/play.
 // `ready` distinguishes a playable video (200) from a still-processing /
 // failed one (409), so the player page never has to inspect HTTP codes.
@@ -77,6 +82,7 @@ export interface PlayResult {
   thumbnailUrl?: string;
   transcript?: ITranscript | null;
   aiSummary?: IAISummary | null;
+  vectorIndex?: IVectorIndex | null;
 }
 
 // Statuses that represent active pipeline work (used for spinners/polling).
@@ -92,3 +98,17 @@ export const IN_PROGRESS_STATUSES: VideoStatus[] = [
 
 export const isInProgress = (status: VideoStatus): boolean =>
   IN_PROGRESS_STATUSES.includes(status);
+
+export interface AskSource {
+  text: string;
+  start: number;
+  end: number;
+  score: number;
+}
+
+export interface AskResponse {
+  success: boolean;
+  answer: string;
+  sources: AskSource[];
+}
+
