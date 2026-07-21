@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { completeUpload, initiateUpload, uploadToStorage } from "@/lib/api";
+import RequireAuth from "@/components/RequireAuth";
 
 function formatBytes(bytes: number) {
   if (bytes === 0) return "0 B";
@@ -14,6 +15,14 @@ function formatBytes(bytes: number) {
 type Phase = "idle" | "uploading" | "finalizing" | "done" | "error";
 
 export default function UploadPage() {
+  return (
+    <RequireAuth>
+      <UploadPageContent />
+    </RequireAuth>
+  );
+}
+
+function UploadPageContent() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");

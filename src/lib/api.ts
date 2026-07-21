@@ -4,27 +4,78 @@ import type {
   PlayResult,
   VideoListItem,
   AskResponse,
+  AuthResponse,
+  AdminStats,
+  AdminVideosResponse,
+  AdminUsersResponse,
 } from "./types";
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 
-/** Small wrapper around fetch that throws a useful error on non-2xx. */
+// The current JWT, set by AuthProvider (lib/auth-context.tsx) whenever it
+// changes (hydrate-from-localStorage, login, register, logout). Kept as a
+// plain module variable — outside React — so this plain `request()` function
+// can read it without every call site having to thread the token through.
+let authToken: string | null = null;
+
+/** Called by AuthProvider whenever the logged-in user's token changes. */
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+/**
+ * An error from an API call. `.message` is always safe to show a user directly
+ * (the server's message, or a friendly fallback) — it never leaks the request
+ * path/status the way a raw fetch error would. `.status` is kept for callers
+ * that want to branch on it (e.g. treat 401 as "session expired").
+ */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/** A human-readable fallback when the server didn't send a `message` field. */
+function fallbackMessage(status: number): string {
+  if (status === 401 || status === 403) return "You're not authorized to do that. Please log in again.";
+  if (status === 404) return "That wasn't found.";
+  if (status >= 500) return "Something went wrong on our end. Please try again.";
+  return "Something went wrong. Please try again.";
+}
+
+/** Headers every authenticated request needs — shared by request() and any
+ * call site (like getPlay) that has to hit fetch() directly instead of going
+ * through request(), so the token is never attached in only one place. */
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  return headers;
+}
+
+/** Small wrapper around fetch that throws a user-safe ApiError on non-2xx. */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = authHeaders();
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers,
   });
 
   if (!res.ok) {
-    let detail = "";
+    let message = "";
     try {
       const body = await res.json();
-      detail = body?.message ? `: ${body.message}` : "";
+      message = typeof body?.message === "string" ? body.message : "";
     } catch {
       /* response had no JSON body */
     }
-    throw new Error(`Request to ${path} failed (${res.status})${detail}`);
+    // Prefer the server's message (already user-facing), else a friendly
+    // fallback — never the raw "Request to /path failed (status)" string.
+    throw new ApiError(message || fallbackMessage(res.status), res.status);
   }
 
   return res.json() as Promise<T>;
@@ -98,7 +149,9 @@ export function listVideos(): Promise<VideoListItem[]> {
  * error, so the player page can render a processing/failed state.
  */
 export async function getPlay(videoId: string): Promise<PlayResult> {
-  const res = await fetch(`${API_BASE}/api/videos/${videoId}/play`);
+  const res = await fetch(`${API_BASE}/api/videos/${videoId}/play`, {
+    headers: authHeaders(),
+  });
   const body = await res.json().catch(() => ({}));
 
   if (res.ok) {
@@ -129,7 +182,10 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
     };
   }
 
-  throw new Error(body?.message ?? `Failed to load video (${res.status})`);
+  throw new ApiError(
+    typeof body?.message === "string" ? body.message : fallbackMessage(res.status),
+    res.status
+  );
 }
 
 /** Ask AI a question about a video's content. */
@@ -138,5 +194,35 @@ export function askQuestion(videoId: string, question: string): Promise<AskRespo
     method: "POST",
     body: JSON.stringify({ question }),
   });
+}
+
+// --- Auth ---
+
+export function register(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function login(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+// --- Admin ---
+
+export function getAdminStats(): Promise<AdminStats> {
+  return request<AdminStats>("/api/admin/stats");
+}
+
+export function getAdminVideos(page = 1, limit = 25): Promise<AdminVideosResponse> {
+  return request<AdminVideosResponse>(`/api/admin/videos?page=${page}&limit=${limit}`);
+}
+
+export function getAdminUsers(): Promise<AdminUsersResponse> {
+  return request<AdminUsersResponse>("/api/admin/users");
 }
 

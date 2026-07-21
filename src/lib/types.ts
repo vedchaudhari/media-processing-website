@@ -112,3 +112,80 @@ export interface AskResponse {
   sources: AskSource[];
 }
 
+// --- Auth ---
+
+export type UserRole = "user" | "admin";
+
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+}
+
+// Response from POST /api/auth/register and POST /api/auth/login.
+export interface AuthResponse {
+  success: boolean;
+  token: string;
+  user: User;
+}
+
+// --- Admin ---
+
+export interface AdminFailedVideo {
+  _id: string;
+  title?: string;
+  failedStage?: string;
+  error?: string;
+  failedAt?: string;
+  owner?: { _id: string; email: string } | null;
+}
+
+export interface QueueCounts {
+  waiting?: number;
+  active?: number;
+  delayed?: number;
+  failed?: number;
+  completed?: number;
+}
+
+export interface AdminStats {
+  success: boolean;
+  totalUsers: number;
+  totalVideos: number;
+  byStatus: Record<VideoStatus, number>;
+  byFailedStage: Record<string, number>;
+  queues: Record<string, QueueCounts>;
+  recentFailures: AdminFailedVideo[];
+}
+
+export interface AdminVideoListItem {
+  _id: string;
+  title?: string;
+  status: VideoStatus;
+  progress?: number;
+  failedStage?: string;
+  createdAt?: string;
+  owner?: { _id: string; email: string } | null;
+}
+
+export interface AdminVideosResponse {
+  success: boolean;
+  videos: AdminVideoListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminUser {
+  _id: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+  videoCount: number;
+}
+
+export interface AdminUsersResponse {
+  success: boolean;
+  users: AdminUser[];
+}
+

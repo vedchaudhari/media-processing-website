@@ -6,8 +6,17 @@ import { useQuery } from "@tanstack/react-query";
 import { listVideos } from "@/lib/api";
 import { isInProgress } from "@/lib/types";
 import VideoCard from "@/components/VideoCard";
+import RequireAuth from "@/components/RequireAuth";
 
 export default function LibraryPage() {
+  return (
+    <RequireAuth>
+      <LibraryPageContent />
+    </RequireAuth>
+  );
+}
+
+function LibraryPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 

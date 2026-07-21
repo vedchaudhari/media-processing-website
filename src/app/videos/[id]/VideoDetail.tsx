@@ -7,6 +7,7 @@ import { getPlay, askQuestion } from "@/lib/api";
 import { isInProgress, type AskSource } from "@/lib/types";
 import HlsPlayer from "@/components/HlsPlayer";
 import StatusBadge from "@/components/StatusBadge";
+import RequireAuth from "@/components/RequireAuth";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -15,6 +16,14 @@ function formatTime(seconds: number): string {
 }
 
 export default function VideoDetail({ id }: { id: string }) {
+  return (
+    <RequireAuth>
+      <VideoDetailContent id={id} />
+    </RequireAuth>
+  );
+}
+
+function VideoDetailContent({ id }: { id: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<"ai" | "transcript" | "ask">("ai");
   // Once the user picks a tab themselves, auto-selection must never override it.
@@ -68,17 +77,18 @@ export default function VideoDetail({ id }: { id: string }) {
   // after the user has picked a tab manually.
   const aiStatus = data?.aiSummary?.status;
   const transcriptStatus = data?.transcript?.status;
+  const vectorIndexStatus = data?.vectorIndex?.status;
   useEffect(() => {
     if (!aiStatus && !transcriptStatus) return;
     if (userChoseTab.current) return;
     if (aiStatus === "completed") {
       setActiveTab("ai");
-    } else if (transcriptStatus === "completed") {
+    } else if (transcriptStatus === "completed" && vectorIndexStatus !== "skipped") {
       setActiveTab("ask");
     } else {
       setActiveTab("transcript");
     }
-  }, [aiStatus, transcriptStatus]);
+  }, [aiStatus, transcriptStatus, vectorIndexStatus]);
 
   const chooseTab = (tab: "ai" | "transcript" | "ask") => {
     userChoseTab.current = true;
@@ -256,7 +266,8 @@ export default function VideoDetail({ id }: { id: string }) {
                         }`}>
                           {data.vectorIndex.status === "completed" ? "Ready" :
                            data.vectorIndex.status === "processing" ? "Indexing..." :
-                           data.vectorIndex.status === "failed" ? "Failed" : "Pending"}
+                           data.vectorIndex.status === "failed" ? "Failed" :
+                           data.vectorIndex.status === "skipped" ? "Not available" : "Pending"}
                         </span>
                       )}
                     </div>
@@ -265,7 +276,7 @@ export default function VideoDetail({ id }: { id: string }) {
                       <div className="space-y-4 py-2">
                         <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-600 dark:border-zinc-700 dark:border-t-indigo-400" />
-                          <span>AI is indexing the video's transcript for search. This takes less than a minute...</span>
+                          <span>AI is indexing the video&apos;s transcript for search. This takes less than a minute...</span>
                         </div>
                         <div className="space-y-2.5 animate-pulse">
                           <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded w-2/3"></div>
@@ -277,6 +288,10 @@ export default function VideoDetail({ id }: { id: string }) {
                         <p className="font-semibold">Indexing failed</p>
                         <p className="mt-1 text-xs opacity-90">{data.vectorIndex.error || "Unknown error occurred"}</p>
                       </div>
+                    ) : data.vectorIndex && data.vectorIndex.status === "skipped" ? (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
+                        No speech was detected in this video, so Ask AI is not available.
+                      </p>
                     ) : (
                       <AskAIChat videoId={id} seekTo={seekTo} />
                     )}
@@ -463,7 +478,7 @@ function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: numbe
       if (saved) {
         try {
           return JSON.parse(saved);
-        } catch (e) {
+        } catch {
           return [];
         }
       }
@@ -485,7 +500,7 @@ function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: numbe
       if (e.key === `chat_history_${videoId}`) {
         try {
           setMessages(e.newValue ? JSON.parse(e.newValue) : []);
-        } catch (err) {
+        } catch {
           // ignore parsing error
         }
       }
