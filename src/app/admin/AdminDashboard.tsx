@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getAdminStats, getAdminUsers } from "@/lib/api";
+import { ADMIN_STATS_KEY, useAdminStatsStream } from "@/lib/use-admin-stats-stream";
+import type { StreamStatus } from "@/lib/sse";
 import {
   PipelineStatusChart,
   QueueDepthsChart,
@@ -22,6 +24,31 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
   );
 }
 
+const STREAM_LABELS: Record<StreamStatus, { text: string; dot: string }> = {
+  connecting: { text: "Connecting…", dot: "bg-amber-400" },
+  open: { text: "Live", dot: "bg-emerald-500" },
+  reconnecting: { text: "Reconnecting…", dot: "bg-amber-400" },
+  closed: { text: "Disconnected", dot: "bg-red-500" },
+};
+
+/**
+ * Connection state of the stats stream. Worth showing: with push instead of
+ * polling, a dead connection and a quiet pipeline look identical otherwise —
+ * both are just numbers that stopped moving.
+ */
+function StreamIndicator({ status }: { status: StreamStatus }) {
+  const { text, dot } = STREAM_LABELS[status];
+  return (
+    <span className="inline-flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+      <span
+        className={`h-2 w-2 rounded-full ${dot} ${status === "open" ? "" : "animate-pulse"}`}
+        aria-hidden
+      />
+      {text}
+    </span>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
@@ -34,11 +61,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function AdminDashboard() {
+  // Updates arrive over SSE (below) rather than on a timer. The one-shot fetch
+  // stays as the fallback path: it renders the dashboard even where the stream
+  // can't be established — e.g. behind a proxy that buffers text/event-stream.
   const statsQuery = useQuery({
-    queryKey: ["admin", "stats"],
+    queryKey: ADMIN_STATS_KEY,
     queryFn: getAdminStats,
-    refetchInterval: 5000,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
+
+  const streamStatus = useAdminStatsStream();
 
   const usersQuery = useQuery({
     queryKey: ["admin", "users"],
@@ -50,7 +83,10 @@ export default function AdminDashboard() {
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-10 space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin Dashboard</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Admin Dashboard</h1>
+          <StreamIndicator status={streamStatus} />
+        </div>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           Pipeline health, users, and recent failures across every account.
         </p>

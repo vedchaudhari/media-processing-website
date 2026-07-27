@@ -1,3 +1,4 @@
+import { openEventStream, type StreamStatus } from "./sse";
 import type {
   CompleteUploadResponse,
   InitiateUploadResponse,
@@ -224,5 +225,30 @@ export function getAdminVideos(page = 1, limit = 25): Promise<AdminVideosRespons
 
 export function getAdminUsers(): Promise<AdminUsersResponse> {
   return request<AdminUsersResponse>("/api/admin/users");
+}
+
+/**
+ * Subscribes to live dashboard stats over SSE — the push replacement for
+ * polling `getAdminStats` on a timer.
+ *
+ * The server sends a snapshot immediately on connect and then only when the
+ * numbers actually change, so `onStats` fires exactly as often as there's
+ * something new to render. Reconnection is handled inside openEventStream.
+ *
+ * @returns A disposer that closes the stream; use it as a `useEffect` cleanup.
+ */
+export function streamAdminStats(handlers: {
+  onStats: (stats: AdminStats) => void;
+  onStatus?: (status: StreamStatus) => void;
+}): () => void {
+  return openEventStream(`${API_BASE}/api/admin/stats/stream`, {
+    // A function, not a snapshot: a reconnect after the token changed must
+    // send the current one.
+    headers: authHeaders,
+    onStatus: handlers.onStatus,
+    onEvent: (event, data) => {
+      if (event === "stats") handlers.onStats(data as AdminStats);
+    },
+  });
 }
 

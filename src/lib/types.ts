@@ -149,7 +149,9 @@ export interface QueueCounts {
 }
 
 export interface AdminStats {
-  success: boolean;
+  // Only present on the REST response envelope — SSE `stats` frames carry the
+  // data alone, so the same type covers both sources.
+  success?: boolean;
   totalUsers: number;
   totalVideos: number;
   byStatus: Record<VideoStatus, number>;
