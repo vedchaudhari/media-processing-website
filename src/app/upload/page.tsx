@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { completeUpload, initiateUpload, uploadToStorage } from "@/lib/api";
+import { useRef, useState } from "react";
+import { cancelUpload, completeUpload, initiateUpload, uploadToStorage } from "@/lib/api";
 import RequireAuth from "@/components/RequireAuth";
 
 function formatBytes(bytes: number) {
@@ -12,7 +12,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
-type Phase = "idle" | "uploading" | "finalizing" | "done" | "error";
+type Phase = "idle" | "uploading" | "cancelling" | "finalizing" | "done" | "error";
 
 export default function UploadPage() {
   return (
@@ -29,12 +29,17 @@ function UploadPageContent() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const videoIdRef = useRef<string | null>(null);
 
   // "done" is included: router.push kicks off a client navigation but this
   // component stays mounted until the target route is ready, so keep the form
   // locked through that window to prevent a duplicate submit.
   const busy =
-    phase === "uploading" || phase === "finalizing" || phase === "done";
+    phase === "uploading" ||
+    phase === "cancelling" ||
+    phase === "finalizing" ||
+    phase === "done";
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
@@ -51,6 +56,8 @@ function UploadPageContent() {
     setPhase("idle");
     setProgress(0);
     setError(null);
+    abortControllerRef.current = null;
+    videoIdRef.current = null;
   };
 
   const handleUpload = async () => {
@@ -61,11 +68,14 @@ function UploadPageContent() {
       // Step 1: reserve a record + presigned URL.
       const effectiveTitle = title.trim() || file.name;
       const { videoId, uploadUrl } = await initiateUpload(effectiveTitle);
+      videoIdRef.current = videoId;
 
       // Step 2: upload straight to storage with progress.
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       setPhase("uploading");
       setProgress(0);
-      await uploadToStorage(uploadUrl, file, setProgress);
+      await uploadToStorage(uploadUrl, file, setProgress, controller.signal);
 
       // Step 3: confirm so the pipeline starts.
       setPhase("finalizing");
@@ -75,9 +85,28 @@ function UploadPageContent() {
       // Hand off to the player/status page for this video.
       router.push(`/videos/${videoId}`);
     } catch (err) {
+      // handleCancel already drove the UI back to idle for a deliberate
+      // cancel — don't show it as an error.
+      if (err instanceof Error && err.name === "AbortError") return;
       setPhase("error");
       setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      abortControllerRef.current = null;
     }
+  };
+
+  const handleCancel = async () => {
+    if (phase !== "uploading") return;
+    const videoId = videoIdRef.current;
+    setPhase("cancelling");
+    abortControllerRef.current?.abort();
+    try {
+      if (videoId) await cancelUpload(videoId);
+    } catch {
+      // Best-effort — the client-side abort already stopped the transfer;
+      // the hourly stale-upload sweep is the backstop if this call fails.
+    }
+    reset();
   };
 
   return (
@@ -189,19 +218,32 @@ function UploadPageContent() {
           </div>
         )}
 
-        {(phase === "uploading" || phase === "finalizing") && (
+        {(phase === "uploading" || phase === "cancelling" || phase === "finalizing") && (
           <div className="mt-4">
-            <div className="mb-1 flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="mb-1 flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
               <span>
-                {phase === "uploading" ? "Uploading…" : "Finalizing…"}
+                {phase === "uploading" && "Uploading…"}
+                {phase === "cancelling" && "Cancelling…"}
+                {phase === "finalizing" && "Finalizing…"}
               </span>
-              <span>{phase === "uploading" ? `${progress}%` : ""}</span>
+              <span className="flex items-center gap-3">
+                {phase === "uploading" && `${progress}%`}
+                {phase === "uploading" && (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="font-medium text-zinc-500 hover:text-zinc-700 hover:underline dark:text-zinc-400 dark:hover:text-zinc-200"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
                 className="h-full rounded-full bg-blue-600 transition-all duration-200"
                 style={{
-                  width: phase === "finalizing" ? "100%" : `${progress}%`,
+                  width: phase === "uploading" ? `${progress}%` : "100%",
                 }}
               />
             </div>

@@ -1,8 +1,11 @@
 import { openEventStream, type StreamStatus } from "./sse";
 import type {
+  CancelUploadResponse,
   CompleteUploadResponse,
   InitiateUploadResponse,
   PlayResult,
+  RetryStageName,
+  RetryStageResponse,
   VideoListItem,
   AskResponse,
   AuthResponse,
@@ -90,18 +93,34 @@ export function initiateUpload(title: string): Promise<InitiateUploadResponse> {
   });
 }
 
+/** Rejected by uploadToStorage when the caller aborts via `signal`, so callers can distinguish a deliberate cancel from a real network failure. */
+export class UploadAbortedError extends Error {
+  constructor() {
+    super("Upload cancelled");
+    this.name = "AbortError";
+  }
+}
+
 /**
  * Step 2: upload the file straight to MinIO via the presigned URL.
  *
  * Uses XMLHttpRequest (not fetch) because only XHR exposes upload progress
  * events, which drive the progress bar. `onProgress` receives 0–100.
+ *
+ * `signal` lets a caller abort the in-flight request (e.g. a Cancel button).
  */
 export function uploadToStorage(
   uploadUrl: string,
   file: File,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new UploadAbortedError());
+      return;
+    }
+
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", uploadUrl);
     // MinIO infers content type from this header for the stored object.
@@ -126,6 +145,11 @@ export function uploadToStorage(
           "Storage upload failed (network/CORS). The MinIO bucket may need a CORS rule allowing this origin."
         )
       );
+    // xhr.abort() fires neither onload nor onerror, so without this handler
+    // an aborted upload would leave the promise pending forever.
+    xhr.onabort = () => reject(new UploadAbortedError());
+
+    signal?.addEventListener("abort", () => xhr.abort());
 
     xhr.send(file);
   });
@@ -135,6 +159,14 @@ export function uploadToStorage(
 export function completeUpload(videoId: string): Promise<CompleteUploadResponse> {
   return request<CompleteUploadResponse>(
     `/api/videos/${videoId}/complete-upload`,
+    { method: "POST" }
+  );
+}
+
+/** Cancels an in-progress upload: tells the backend to give up on it and delete the reserved record. */
+export function cancelUpload(videoId: string): Promise<CancelUploadResponse> {
+  return request<CancelUploadResponse>(
+    `/api/videos/${videoId}/cancel-upload`,
     { method: "POST" }
   );
 }
@@ -187,6 +219,13 @@ export async function getPlay(videoId: string): Promise<PlayResult> {
     typeof body?.message === "string" ? body.message : fallbackMessage(res.status),
     res.status
   );
+}
+
+/** Retries one of a video's failed side-branch stages (transcript, AI insights, or Ask-AI indexing). */
+export function retryStage(videoId: string, stage: RetryStageName): Promise<RetryStageResponse> {
+  return request<RetryStageResponse>(`/api/videos/${videoId}/retry/${stage}`, {
+    method: "POST",
+  });
 }
 
 /** Ask AI a question about a video's content. */

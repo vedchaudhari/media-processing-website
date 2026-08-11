@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { getPlay, askQuestion } from "@/lib/api";
-import { isInProgress, type AskSource } from "@/lib/types";
+import { getPlay, askQuestion, retryStage } from "@/lib/api";
+import { isInProgress, type AskSource, type RetryStageName } from "@/lib/types";
 import HlsPlayer from "@/components/HlsPlayer";
 import StatusBadge from "@/components/StatusBadge";
 import RequireAuth from "@/components/RequireAuth";
@@ -13,6 +13,47 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** Retries one failed side-branch stage (transcript / AI insights / Ask-AI indexing) for a video. */
+function RetryButton({
+  videoId,
+  stage,
+  onRetried,
+}: {
+  videoId: string;
+  stage: RetryStageName;
+  onRetried: () => void;
+}) {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setError(null);
+    try {
+      await retryStage(videoId, stage);
+      onRetried();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Retry failed");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={handleRetry}
+        disabled={isRetrying}
+        className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-950/40"
+      >
+        {isRetrying ? "Retrying…" : "Retry"}
+      </button>
+      {error && <span className="text-xs opacity-90">{error}</span>}
+    </div>
+  );
 }
 
 export default function VideoDetail({ id }: { id: string }) {
@@ -45,7 +86,7 @@ function VideoDetailContent({ id }: { id: string }) {
     }
   }, []);
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["play", id],
     queryFn: () => getPlay(id),
     // Keep polling while the video, transcript, or AI summary is still moving through the pipeline.
@@ -221,6 +262,7 @@ function VideoDetailContent({ id }: { id: string }) {
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400">
                         <p className="font-semibold">Transcription failed</p>
                         <p className="mt-1 text-xs opacity-90">{data.transcript.error || "Unknown error occurred"}</p>
+                        <RetryButton videoId={id} stage="transcript" onRetried={refetch} />
                       </div>
                     )}
 
@@ -287,6 +329,7 @@ function VideoDetailContent({ id }: { id: string }) {
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 py-2">
                         <p className="font-semibold">Indexing failed</p>
                         <p className="mt-1 text-xs opacity-90">{data.vectorIndex.error || "Unknown error occurred"}</p>
+                        <RetryButton videoId={id} stage="embedding" onRetried={refetch} />
                       </div>
                     ) : data.vectorIndex && data.vectorIndex.status === "skipped" ? (
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
@@ -335,6 +378,7 @@ function VideoDetailContent({ id }: { id: string }) {
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-950 dark:bg-red-950/20 dark:text-red-400 py-2">
                         <p className="font-semibold">AI Analysis failed</p>
                         <p className="mt-1 text-xs opacity-90">{data.aiSummary.error || "Unknown error occurred"}</p>
+                        <RetryButton videoId={id} stage="ai" onRetried={refetch} />
                       </div>
                     )}
 

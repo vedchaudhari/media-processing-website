@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { CancelledError, useQuery } from "@tanstack/react-query";
 import { getAdminStats, getAdminUsers } from "@/lib/api";
 import { ADMIN_STATS_KEY, useAdminStatsStream } from "@/lib/use-admin-stats-stream";
 import type { StreamStatus } from "@/lib/sse";
@@ -96,7 +96,7 @@ export default function AdminDashboard() {
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       )}
 
-      {statsQuery.isError && (
+      {statsQuery.isError && !(statsQuery.error instanceof CancelledError) && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
           Failed to load stats:{" "}
           {statsQuery.error instanceof Error ? statsQuery.error.message : "Unknown error"}

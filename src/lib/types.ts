@@ -35,6 +35,24 @@ export interface CompleteUploadResponse {
   status: VideoStatus;
 }
 
+// Response from POST /api/videos/:id/cancel-upload.
+export interface CancelUploadResponse {
+  success: boolean;
+  cancelled: boolean;
+  videoId: string;
+  status?: VideoStatus;
+}
+
+export type RetryStageName = "transcript" | "ai" | "embedding";
+
+// Response from POST /api/videos/:id/retry/:stage.
+export interface RetryStageResponse {
+  success: boolean;
+  stage?: RetryStageName;
+  status?: string;
+  message?: string;
+}
+
 export interface ITranscriptSegment {
   start: number;
   end: number;
