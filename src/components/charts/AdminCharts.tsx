@@ -16,8 +16,6 @@ import { useChartChrome, STATUS_COLORS } from "./chartTheme";
 import ChartTooltip from "./ChartTooltip";
 import type { VideoStatus, QueueCounts } from "@/lib/types";
 
-// Pipeline order, matching the backend's VIDEO_STATUSES — a snapshot count of
-// videos currently sitting in each stage, not a cumulative funnel.
 const STATUS_ORDER: VideoStatus[] = [
   "uploading",
   "uploaded",
@@ -30,12 +28,6 @@ const STATUS_ORDER: VideoStatus[] = [
   "failed",
 ];
 
-/**
- * Bar per video status, in pipeline order. Color carries meaning here (not
- * series identity): blue for "still moving through the pipeline," green for
- * the completed terminal state, red for the failed one — so health reads at
- * a glance without a legend, backed by the x-axis label as the identity channel.
- */
 export function PipelineStatusChart({ byStatus }: { byStatus: Record<VideoStatus, number> }) {
   const chrome = useChartChrome();
   const data = STATUS_ORDER.map((status) => ({ status, count: byStatus[status] ?? 0 }));
@@ -93,13 +85,6 @@ const QUEUE_SERIES = [
   { key: "failed", label: "Failed", color: "critical" as const },
 ];
 
-/**
- * Grouped bar per queue: waiting/active/delayed/failed as four genuinely
- * distinct series (not a single measure), so — unlike the status charts here —
- * this one gets a real legend. `completed` is omitted: it's an unbounded
- * historical count, not something to watch live (it's already in the stat
- * cards above).
- */
 export function QueueDepthsChart({ queues }: { queues: Record<string, QueueCounts> }) {
   const chrome = useChartChrome();
   const data = Object.entries(queues).map(([name, counts]) => ({
@@ -149,8 +134,6 @@ export function QueueDepthsChart({ queues }: { queues: Record<string, QueueCount
   );
 }
 
-/** Bars per failure stage — every bar means the same thing ("failed here"), so
- * one hue (critical) carries all of them; no legend needed for a single measure. */
 export function FailuresByStageChart({ byFailedStage }: { byFailedStage: Record<string, number> }) {
   const chrome = useChartChrome();
   const data = Object.entries(byFailedStage).map(([stage, count]) => ({ stage, count }));

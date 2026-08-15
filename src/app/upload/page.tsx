@@ -32,9 +32,6 @@ function UploadPageContent() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const videoIdRef = useRef<string | null>(null);
 
-  // "done" is included: router.push kicks off a client navigation but this
-  // component stays mounted until the target route is ready, so keep the form
-  // locked through that window to prevent a duplicate submit.
   const busy =
     phase === "uploading" ||
     phase === "cancelling" ||
@@ -65,28 +62,25 @@ function UploadPageContent() {
     setError(null);
 
     try {
-      // Step 1: reserve a record + presigned URL.
+
       const effectiveTitle = title.trim() || file.name;
       const { videoId, uploadUrl } = await initiateUpload(effectiveTitle);
       videoIdRef.current = videoId;
 
-      // Step 2: upload straight to storage with progress.
       const controller = new AbortController();
       abortControllerRef.current = controller;
       setPhase("uploading");
       setProgress(0);
       await uploadToStorage(uploadUrl, file, setProgress, controller.signal);
 
-      // Step 3: confirm so the pipeline starts.
       setPhase("finalizing");
       await completeUpload(videoId);
 
       setPhase("done");
-      // Hand off to the player/status page for this video.
+
       router.push(`/videos/${videoId}`);
     } catch (err) {
-      // handleCancel already drove the UI back to idle for a deliberate
-      // cancel — don't show it as an error.
+
       if (err instanceof Error && err.name === "AbortError") return;
       setPhase("error");
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -103,8 +97,7 @@ function UploadPageContent() {
     try {
       if (videoId) await cancelUpload(videoId);
     } catch {
-      // Best-effort — the client-side abort already stopped the transfer;
-      // the hourly stale-upload sweep is the backstop if this call fails.
+
     }
     reset();
   };

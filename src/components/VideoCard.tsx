@@ -10,7 +10,7 @@ export default function VideoCard({ video }: { video: VideoListItem }) {
       href={`/videos/${video.id}`}
       className="group block overflow-hidden rounded-xl border border-zinc-200 bg-white transition-all duration-300 hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
     >
-      {/* Thumbnail 16:9 container */}
+      {}
       <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-900 dark:to-zinc-850">
         {video.thumbnailUrl ? (
           <img
@@ -38,19 +38,19 @@ export default function VideoCard({ video }: { video: VideoListItem }) {
             </svg>
           </div>
         )}
-        
-        {/* Floating StatusBadge overlay on top-right */}
+
+        {}
         <div className="absolute top-3 right-3 z-10">
           <StatusBadge status={video.status} progress={video.progress} />
         </div>
       </div>
 
-      {/* Content */}
+      {}
       <div className="flex flex-col gap-3 p-4">
         <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900 group-hover:text-blue-600 dark:text-zinc-100 dark:group-hover:text-blue-400 transition-colors">
           {video.title || "Untitled"}
         </h3>
-        
+
         {video.status === "transcoding" && (
           <div className="w-full">
             <div className="flex justify-between text-[10px] font-medium text-amber-600 dark:text-amber-500 mb-1">

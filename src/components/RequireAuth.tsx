@@ -4,13 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
-/**
- * Client-side route guard: redirects to /login if nobody's logged in (or to
- * "/" if `adminOnly` and the logged-in user isn't an admin). This is a UX
- * convenience only — the actual security boundary is the API's requireAuth/
- * requireAdmin middleware, which the frontend can't bypass regardless of what
- * this component does.
- */
 export default function RequireAuth({
   children,
   adminOnly = false,

@@ -15,7 +15,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** Retries one failed side-branch stage (transcript / AI insights / Ask-AI indexing) for a video. */
 function RetryButton({
   videoId,
   stage,
@@ -67,12 +66,11 @@ export default function VideoDetail({ id }: { id: string }) {
 function VideoDetailContent({ id }: { id: string }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [activeTab, setActiveTab] = useState<"ai" | "transcript" | "ask">("ai");
-  // Once the user picks a tab themselves, auto-selection must never override it.
+
   const userChoseTab = useRef(false);
   const playerRef = useRef<any>(null);
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize session: clear old localStorage chats if browser session closed
   useEffect(() => {
     const isNewSession = !document.cookie.includes("session_active=true");
     if (isNewSession) {
@@ -89,22 +87,19 @@ function VideoDetailContent({ id }: { id: string }) {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["play", id],
     queryFn: () => getPlay(id),
-    // Keep polling while the video, transcript, or AI summary is still moving through the pipeline.
+
     refetchInterval: (query) => {
       const result = query.state.data;
       if (result && !result.ready && isInProgress(result.status)) return 3000;
-      
-      // Also poll if the video is ready but transcript is still processing/pending
+
       if (result && result.ready && result.transcript && (result.transcript.status === "pending" || result.transcript.status === "processing")) {
         return 3000;
       }
 
-      // Also poll if the video is ready but AI summary is still processing/pending
       if (result && result.ready && result.aiSummary && (result.aiSummary.status === "pending" || result.aiSummary.status === "processing")) {
         return 3000;
       }
 
-      // Also poll if the video is ready but Qdrant indexing is still processing/pending
       if (result && result.ready && result.vectorIndex && (result.vectorIndex.status === "pending" || result.vectorIndex.status === "processing")) {
         return 3000;
       }
@@ -112,10 +107,6 @@ function VideoDetailContent({ id }: { id: string }) {
     },
   });
 
-  // Switch to the first available tab automatically. Depends on the status
-  // strings (not the `data` object, which is a fresh reference on every poll /
-  // window refocus) so it only fires when a status actually changes — and never
-  // after the user has picked a tab manually.
   const aiStatus = data?.aiSummary?.status;
   const transcriptStatus = data?.transcript?.status;
   const vectorIndexStatus = data?.vectorIndex?.status;
@@ -136,7 +127,6 @@ function VideoDetailContent({ id }: { id: string }) {
     setActiveTab(tab);
   };
 
-  // Auto-scroll the active transcript segment into view
   useEffect(() => {
     if (activeTab === "transcript" && transcriptContainerRef.current) {
       const activeEl = transcriptContainerRef.current.querySelector("[data-active='true']");
@@ -148,7 +138,6 @@ function VideoDetailContent({ id }: { id: string }) {
       }
     }
   }, [currentTime, activeTab]);
-
 
   const handlePlayerReady = (player: any) => {
     playerRef.current = player;
@@ -192,12 +181,12 @@ function VideoDetailContent({ id }: { id: string }) {
             <StatusBadge status={data.status} progress={data.progress} />
           </div>
 
-          {/* Ready → play it */}
+          {}
           {data.ready && data.playbackUrl && (
             <div className="space-y-6">
               <HlsPlayer src={data.playbackUrl} poster={data.thumbnailUrl} onReady={handlePlayerReady} chapters={data.aiSummary?.chapters} />
-              
-              {/* Tab Selector */}
+
+              {}
               <div className="flex bg-zinc-100 p-1 rounded-xl dark:bg-zinc-900 w-fit">
                 {data.aiSummary && (
                   <button
@@ -237,12 +226,12 @@ function VideoDetailContent({ id }: { id: string }) {
                 )}
               </div>
 
-              {/* Tab Content Panel */}
+              {}
               <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
                 {activeTab === "transcript" ? (
                   <div>
                     <h2 className="mb-4 text-base font-semibold tracking-tight border-b border-zinc-100 pb-4 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100">Interactive Transcript</h2>
-                    
+
                     {!data.transcript && (
                       <p className="text-sm text-zinc-500 dark:text-zinc-400">No transcript available.</p>
                     )}
@@ -313,7 +302,7 @@ function VideoDetailContent({ id }: { id: string }) {
                         </span>
                       )}
                     </div>
-                    
+
                     {data.vectorIndex && (data.vectorIndex.status === "pending" || data.vectorIndex.status === "processing") ? (
                       <div className="space-y-4 py-2">
                         <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -469,7 +458,7 @@ function VideoDetailContent({ id }: { id: string }) {
             </div>
           )}
 
-          {/* Failed → clear failure state */}
+          {}
           {!data.ready && data.status === "failed" && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900 dark:bg-red-950">
               <p className="text-sm font-medium text-red-700 dark:text-red-300">
@@ -481,7 +470,7 @@ function VideoDetailContent({ id }: { id: string }) {
             </div>
           )}
 
-          {/* Still processing → progress / spinner */}
+          {}
           {!data.ready && isInProgress(data.status) && (
             <div className="rounded-xl border border-zinc-200 bg-white p-10 text-center dark:border-zinc-800 dark:bg-zinc-950">
               <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-blue-600 dark:border-zinc-700 dark:border-t-blue-400" />
@@ -533,19 +522,17 @@ function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: numbe
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Sync messages to localStorage
   useEffect(() => {
     localStorage.setItem(`chat_history_${videoId}`, JSON.stringify(messages));
   }, [messages, videoId]);
 
-  // Sync messages across other tabs in real-time
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === `chat_history_${videoId}`) {
         try {
           setMessages(e.newValue ? JSON.parse(e.newValue) : []);
         } catch {
-          // ignore parsing error
+
         }
       }
     };
@@ -584,7 +571,7 @@ function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: numbe
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Chat Messages */}
+      {}
       <div className="flex flex-col gap-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
         {messages.length === 0 && (
           <div className="text-center py-8 text-zinc-500 dark:text-zinc-400 text-sm">
@@ -635,7 +622,7 @@ function AskAIChat({ videoId, seekTo }: { videoId: string; seekTo: (start: numbe
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input Form */}
+      {}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"

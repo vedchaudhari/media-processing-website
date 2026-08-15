@@ -1,4 +1,3 @@
-// Mirrors the backend's video status state machine.
 export type VideoStatus =
   | "uploading"
   | "uploaded"
@@ -10,7 +9,6 @@ export type VideoStatus =
   | "completed"
   | "failed";
 
-// Item shape returned by GET /api/videos/get-videos.
 export interface VideoListItem {
   id: string;
   title?: string;
@@ -20,7 +18,6 @@ export interface VideoListItem {
   createdAt?: string;
 }
 
-// Response from POST /api/videos/initiate-upload.
 export interface InitiateUploadResponse {
   success: boolean;
   videoId: string;
@@ -28,14 +25,12 @@ export interface InitiateUploadResponse {
   uploadUrl: string;
 }
 
-// Response from POST /api/videos/:id/complete-upload.
 export interface CompleteUploadResponse {
   success: boolean;
   videoId: string;
   status: VideoStatus;
 }
 
-// Response from POST /api/videos/:id/cancel-upload.
 export interface CancelUploadResponse {
   success: boolean;
   cancelled: boolean;
@@ -45,7 +40,6 @@ export interface CancelUploadResponse {
 
 export type RetryStageName = "transcript" | "ai" | "embedding";
 
-// Response from POST /api/videos/:id/retry/:stage.
 export interface RetryStageResponse {
   success: boolean;
   stage?: RetryStageName;
@@ -73,7 +67,7 @@ export interface IChapter {
 }
 
 export interface IAISummary {
-  // "skipped" = no transcript text to summarize (e.g. a video with no speech).
+
   status: "pending" | "processing" | "completed" | "failed" | "skipped";
   summary?: string;
   keyTakeaways?: string[];
@@ -87,9 +81,6 @@ export interface IVectorIndex {
   error?: string;
 }
 
-// Normalized result of GET /api/videos/:id/play.
-// `ready` distinguishes a playable video (200) from a still-processing /
-// failed one (409), so the player page never has to inspect HTTP codes.
 export interface PlayResult {
   ready: boolean;
   videoId: string;
@@ -103,7 +94,6 @@ export interface PlayResult {
   vectorIndex?: IVectorIndex | null;
 }
 
-// Statuses that represent active pipeline work (used for spinners/polling).
 export const IN_PROGRESS_STATUSES: VideoStatus[] = [
   "uploading",
   "uploaded",
@@ -130,8 +120,6 @@ export interface AskResponse {
   sources: AskSource[];
 }
 
-// --- Auth ---
-
 export type UserRole = "user" | "admin";
 
 export interface User {
@@ -140,14 +128,11 @@ export interface User {
   role: UserRole;
 }
 
-// Response from POST /api/auth/register and POST /api/auth/login.
 export interface AuthResponse {
   success: boolean;
   token: string;
   user: User;
 }
-
-// --- Admin ---
 
 export interface AdminFailedVideo {
   _id: string;
@@ -167,8 +152,7 @@ export interface QueueCounts {
 }
 
 export interface AdminStats {
-  // Only present on the REST response envelope — SSE `stats` frames carry the
-  // data alone, so the same type covers both sources.
+
   success?: boolean;
   totalUsers: number;
   totalVideos: number;

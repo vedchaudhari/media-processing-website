@@ -17,12 +17,6 @@ import {
   type RemixiconComponentType,
 } from "@remixicon/react";
 
-/**
- * A single nav destination. The icon always shows; the label collapses away on
- * small screens so the bar never overflows on mobile (icon-only there,
- * icon+label from `sm` up). `active` gets a filled-in treatment so the current
- * section is obvious.
- */
 function NavLink({
   href,
   label,
@@ -50,12 +44,6 @@ function NavLink({
   );
 }
 
-/**
- * Account dropdown: a profile-icon button that toggles a small menu showing the
- * signed-in email, role, and a log-out action. Click to open; closes on
- * outside-click, Escape, or when a route change is triggered from inside it.
- * Preferred over an inline email + button so the bar stays uncluttered.
- */
 function ProfileMenu({ email, role, onLogout }: { email: string; role: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -150,8 +138,8 @@ export default function NavBar() {
         </Link>
 
         <div className="flex items-center gap-1 text-sm">
-          {/* Until hydration finishes we don't know the auth state, so render
-              nothing rather than flashing the wrong set of links. */}
+          {
+}
           {!isHydrated ? null : user ? (
             <>
               <NavLink href="/" label="Library" icon={RiVideoLine} active={pathname === "/"} />
@@ -163,7 +151,7 @@ export default function NavBar() {
                   active={pathname.startsWith("/admin")}
                 />
               )}
-              {/* Upload is the primary action → accent button, not a plain link. */}
+              {}
               <Link
                 href="/upload"
                 aria-current={pathname === "/upload" ? "page" : undefined}
@@ -182,7 +170,7 @@ export default function NavBar() {
                 icon={RiLoginBoxLine}
                 active={pathname === "/login"}
               />
-              {/* Register is the primary CTA for a logged-out visitor. */}
+              {}
               <Link
                 href="/register"
                 aria-current={pathname === "/register" ? "page" : undefined}

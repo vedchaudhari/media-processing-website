@@ -31,11 +31,6 @@ const STREAM_LABELS: Record<StreamStatus, { text: string; dot: string }> = {
   closed: { text: "Disconnected", dot: "bg-red-500" },
 };
 
-/**
- * Connection state of the stats stream. Worth showing: with push instead of
- * polling, a dead connection and a quiet pipeline look identical otherwise —
- * both are just numbers that stopped moving.
- */
 function StreamIndicator({ status }: { status: StreamStatus }) {
   const { text, dot } = STREAM_LABELS[status];
   return (
@@ -61,9 +56,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function AdminDashboard() {
-  // Updates arrive over SSE (below) rather than on a timer. The one-shot fetch
-  // stays as the fallback path: it renders the dashboard even where the stream
-  // can't be established — e.g. behind a proxy that buffers text/event-stream.
+
   const statsQuery = useQuery({
     queryKey: ADMIN_STATS_KEY,
     queryFn: getAdminStats,

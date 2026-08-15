@@ -23,8 +23,7 @@ function LibraryPageContent() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["videos"],
     queryFn: listVideos,
-    // Poll while anything is still processing, so status badges advance live.
-    // Once everything is settled (completed/failed), stop hammering the API.
+
     refetchInterval: (query) => {
       const videos = query.state.data;
       if (videos && videos.some((v) => isInProgress(v.status))) return 3000;
@@ -33,8 +32,7 @@ function LibraryPageContent() {
   });
 
   const filteredVideos = data?.filter((video) => {
-    // `?? ""` so untitled videos aren't dropped (optional chaining alone would
-    // make matchesSearch undefined and filter them out even with no query).
+
     const matchesSearch = (video.title ?? "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || video.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -57,7 +55,7 @@ function LibraryPageContent() {
         </Link>
       </div>
 
-      {/* Search and Filters */}
+      {}
       {data && data.length > 0 && (
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-md">

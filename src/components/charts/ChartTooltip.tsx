@@ -8,7 +8,6 @@ interface ChartTooltipProps {
   payload?: Array<{ name?: string; value?: number | string; color?: string }>;
 }
 
-/** Shared hover tooltip: chart-surface box, hairline border, text tokens only. */
 export default function ChartTooltip({ active, label, payload }: ChartTooltipProps) {
   const chrome = useChartChrome();
   if (!active || !payload || payload.length === 0) return null;
